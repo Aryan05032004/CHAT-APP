@@ -1,6 +1,7 @@
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:speech_to_text/speech_to_text.dart' as stt;
 
 import '../service/database_service.dart';
 import '../widgets/message_tile.dart';
@@ -11,12 +12,13 @@ class ChatPage extends StatefulWidget {
   final String groupId;
   final String groupName;
   final String userName;
-  const ChatPage(
-      {Key? key,
-        required this.groupId,
-        required this.groupName,
-        required this.userName})
-      : super(key: key);
+
+  const ChatPage({
+    Key? key,
+    required this.groupId,
+    required this.groupName,
+    required this.userName,
+  }) : super(key: key);
 
   @override
   State<ChatPage> createState() => _ChatPageState();
@@ -27,10 +29,21 @@ class _ChatPageState extends State<ChatPage> {
   TextEditingController messageController = TextEditingController();
   String admin = "";
 
+  stt.SpeechToText _speech = stt.SpeechToText();
+  bool isListening = false;
+
   @override
   void initState() {
     getChatandAdmin();
+    _requestMicrophonePermission();
     super.initState();
+  }
+
+  _requestMicrophonePermission() async {
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.microphone,
+    ].request();
+    print(statuses[Permission.microphone]);
   }
 
   getChatandAdmin() {
@@ -56,31 +69,34 @@ class _ChatPageState extends State<ChatPage> {
         backgroundColor: Theme.of(context).primaryColor,
         actions: [
           IconButton(
-              onPressed: () {
-                nextScreen(
-                    context,
-                    GroupInfo(
-                      groupId: widget.groupId,
-                      groupName: widget.groupName,
-                      adminName: admin,
-                    ));
-              },
-              icon: const Icon(Icons.info))
+            onPressed: () {
+              nextScreen(
+                context,
+                GroupInfo(
+                  groupId: widget.groupId,
+                  groupName: widget.groupName,
+                  adminName: admin,
+                ),
+              );
+            },
+            icon: const Icon(Icons.info),
+          )
         ],
       ),
       body: Stack(
         children: <Widget>[
-          // chat messages here
           chatMessages(),
           Container(
             alignment: Alignment.bottomCenter,
             width: MediaQuery.of(context).size.width,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
               width: MediaQuery.of(context).size.width,
               color: Colors.grey[700],
-              child: Row(children: [
-                Expanded(
+              child: Row(
+                children: [
+                  Expanded(
                     child: TextFormField(
                       controller: messageController,
                       style: const TextStyle(color: Colors.white),
@@ -89,29 +105,64 @@ class _ChatPageState extends State<ChatPage> {
                         hintStyle: TextStyle(color: Colors.white, fontSize: 16),
                         border: InputBorder.none,
                       ),
-                    )),
-                const SizedBox(
-                  width: 12,
-                ),
-                GestureDetector(
-                  onTap: () {
-                    sendMessage();
-                  },
-                  child: Container(
-                    height: 50,
-                    width: 50,
-                    decoration: BoxDecoration(
-                      color: Theme.of(context).primaryColor,
-                      borderRadius: BorderRadius.circular(30),
                     ),
-                    child: const Center(
+                  ),
+                  const SizedBox(
+                    width: 12,
+                  ),
+                  GestureDetector(
+                    onLongPress: () {
+                      startListening();
+                    },
+                    onLongPressUp: () {
+                      stopListening();
+                    },
+                    child: Container(
+                      height: 50,
+                      width: 50,
+                      decoration: BoxDecoration(
+                        color: isListening
+                            ? Colors.red
+                            : Theme.of(context).primaryColor,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: Center(
+                        child: isListening
+                            ? const Icon(
+                          Icons.mic,
+                          color: Colors.white,
+                        )
+                            : const Icon(
+                          Icons.mic_none,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(
+                    width: 12,
+                  ),
+                  GestureDetector(
+                    onTap: () {
+                      sendMessage();
+                    },
+                    child: Container(
+                      height: 50,
+                      width: 50,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).primaryColor,
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                      child: const Center(
                         child: Icon(
                           Icons.send,
                           color: Colors.white,
-                        )),
-                  ),
-                )
-              ]),
+                        ),
+                      ),
+                    ),
+                  )
+                ],
+              ),
             ),
           )
         ],
@@ -119,7 +170,7 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  chatMessages() {
+  Widget chatMessages() {
     return StreamBuilder(
       stream: chats,
       builder: (context, AsyncSnapshot snapshot) {
@@ -128,10 +179,11 @@ class _ChatPageState extends State<ChatPage> {
           itemCount: snapshot.data.docs.length,
           itemBuilder: (context, index) {
             return MessageTile(
-                message: snapshot.data.docs[index]['message'],
-                sender: snapshot.data.docs[index]['sender'],
-                sentByMe: widget.userName ==
-                    snapshot.data.docs[index]['sender']);
+              message: snapshot.data.docs[index]['message'],
+              sender: snapshot.data.docs[index]['sender'],
+              sentByMe:
+              widget.userName == snapshot.data.docs[index]['sender'], isAudio: null, onTap: () {  },
+            );
           },
         )
             : Container();
@@ -139,7 +191,7 @@ class _ChatPageState extends State<ChatPage> {
     );
   }
 
-  sendMessage() {
+  void sendMessage() {
     if (messageController.text.isNotEmpty) {
       Map<String, dynamic> chatMessageMap = {
         "message": messageController.text,
@@ -152,5 +204,27 @@ class _ChatPageState extends State<ChatPage> {
         messageController.clear();
       });
     }
+  }
+
+  void startListening() {
+    if (!_speech.isListening) {
+      _speech.listen(
+        onResult: (result) {
+          setState(() {
+            messageController.text = result.recognizedWords;
+          });
+        },
+      );
+      setState(() {
+        isListening = true;
+      });
+    }
+  }
+
+  void stopListening() {
+    _speech.stop();
+    setState(() {
+      isListening = false;
+    });
   }
 }

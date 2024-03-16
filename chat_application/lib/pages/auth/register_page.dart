@@ -39,7 +39,7 @@ class _RegisterPageState extends State<RegisterPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                const Text("Groupie", style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold)),
+                const Text("Fluent Flow", style: TextStyle(fontSize: 40, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 10,),
                 const Text("Create your account to chat and explore!", style: TextStyle(fontSize: 15, fontWeight: FontWeight.w400)),
                 Image.asset("assets/register.png"),

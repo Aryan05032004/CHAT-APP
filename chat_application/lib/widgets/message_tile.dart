@@ -9,7 +9,7 @@ class MessageTile extends StatefulWidget {
       {Key? key,
         required this.message,
         required this.sender,
-        required this.sentByMe})
+        required this.sentByMe, required isAudio, required Null Function() onTap})
       : super(key: key);
 
   @override
